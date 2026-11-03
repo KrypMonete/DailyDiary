@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -32,10 +33,12 @@ object Routes {
 }
 
 @Composable
-fun DailyDairyApp(themeViewModel: ThemeViewModel = viewModel()) {
+fun DailyDiaryApp(
+    themeViewModel: ThemeViewModel = viewModel(),
+    diaryViewModel: DiaryViewModel = viewModel(),
+) {
     val palette by themeViewModel.palette.collectAsStateWithLifecycle()
     val appearance by themeViewModel.appearance.collectAsStateWithLifecycle()
-    val diaryViewModel: DiaryViewModel = viewModel()
     val nav = rememberNavController()
 
     AppTheme(palette = palette, appearance = appearance) {
@@ -46,25 +49,25 @@ fun DailyDairyApp(themeViewModel: ThemeViewModel = viewModel()) {
                 }
                 composable(Routes.Diary) {
                     DiaryRoute(
-                        onBack = { nav.popBackStack() },
+                        onBack = { nav.backHome() },
                         viewModel = diaryViewModel,
                     )
                 }
                 composable(Routes.Notes) {
-                    NotesRoute(onBack = { nav.popBackStack() })
+                    NotesRoute(onBack = { nav.backHome() })
                 }
                 composable(Routes.Shopping) {
-                    ShoppingRoute(onBack = { nav.popBackStack() })
+                    ShoppingRoute(onBack = { nav.backHome() })
                 }
                 composable(Routes.Watched) {
-                    WatchRoute(onBack = { nav.popBackStack() })
+                    WatchRoute(onBack = { nav.backHome() })
                 }
                 composable(Routes.Books) {
-                    BooksRoute(onBack = { nav.popBackStack() })
+                    BooksRoute(onBack = { nav.backHome() })
                 }
                 composable(Routes.Settings) {
                     SettingsScreen(
-                        onBack = { nav.popBackStack() },
+                        onBack = { nav.backHome() },
                         themeViewModel = themeViewModel,
                         diaryViewModel = diaryViewModel,
                     )
@@ -72,4 +75,8 @@ fun DailyDairyApp(themeViewModel: ThemeViewModel = viewModel()) {
             }
         }
     }
+}
+
+private fun NavHostController.backHome() {
+    if (previousBackStackEntry != null) popBackStack()
 }

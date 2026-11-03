@@ -1,12 +1,17 @@
 package com.dailydairy.shopping
 
+import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -17,6 +22,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -27,11 +34,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.AddPhotoAlternate
 import androidx.compose.material.icons.outlined.BakeryDining
 import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.outlined.Book
@@ -79,10 +90,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -91,6 +104,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -99,18 +113,23 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil3.compose.AsyncImage
+import com.dailydairy.diary.DiaryImages
 import com.dailydairy.diary.barColors
 import com.dailydairy.home.clickableCard
+import kotlinx.coroutines.launch
 
 @Composable
 fun ShoppingRoute(onBack: () -> Unit, viewModel: ShoppingViewModel = viewModel()) {
     val lists by viewModel.lists.collectAsStateWithLifecycle()
     val allItems by viewModel.allItems.collectAsStateWithLifecycle()
     var openId by remember { mutableStateOf<Long?>(null) }
+    var lastKind by remember { mutableStateOf(LIST_PLAIN) }
     val open = lists.find { it.list.id == openId }
     if (open != null) {
         ShoppingDetail(
@@ -130,14 +149,21 @@ fun ShoppingRoute(onBack: () -> Unit, viewModel: ShoppingViewModel = viewModel()
                 openId = null
             },
             onIcon = { viewModel.setIcon(open.list.id, it) },
+            onRename = { viewModel.rename(open.list.id, it) },
+            onSetCover = { uri -> viewModel.setCoverImage(open.list.id, uri) },
+            onRemoveCover = { viewModel.removeCoverImage(open.list.id) },
         )
         return
     }
     ShoppingLists(
         lists = lists,
         items = allItems,
+        initialKind = lastKind,
         onBack = onBack,
-        onOpen = { openId = it.list.id },
+        onOpen = {
+            lastKind = it.list.kind.ifBlank { LIST_PLAIN }
+            openId = it.list.id
+        },
         onCreate = { name, kind -> viewModel.createList(name, -1, kind) },
         onDelete = viewModel::deleteLists,
     )
@@ -148,6 +174,7 @@ fun ShoppingRoute(onBack: () -> Unit, viewModel: ShoppingViewModel = viewModel()
 private fun ShoppingLists(
     lists: List<ShoppingListCard>,
     items: List<ShoppingItem>,
+    initialKind: String,
     onBack: () -> Unit,
     onOpen: (ShoppingListCard) -> Unit,
     onCreate: (String, String) -> Unit,
@@ -160,10 +187,22 @@ private fun ShoppingLists(
     var query by remember { mutableStateOf("") }
     var picked by remember { mutableStateOf(setOf<Long>()) }
     var askDelete by remember { mutableStateOf(false) }
+    var shelf by remember { mutableStateOf(LIST_PLAIN) }
+    val kinds = listOf(LIST_PLAIN, LIST_SHOP, LIST_RECIPE)
+    val kindLabels = listOf("Liste", "Alışveriş", "Tarif")
+    val initialPage = kinds.indexOf(initialKind).coerceAtLeast(0)
+    val pager = rememberPagerState(initialPage = initialPage, pageCount = { kinds.size })
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(pager) {
+        snapshotFlow { pager.currentPage }.collect { shelf = kinds[it] }
+    }
     val needle = query.trim()
-    val shown = remember(lists, items, needle) {
-        if (needle.isEmpty()) lists
-        else lists.filter { card ->
+    val shelved = remember(lists, shelf, searching) {
+        if (searching) lists else lists.filter { it.list.kind.ifBlank { LIST_PLAIN } == shelf }
+    }
+    val shown = remember(shelved, items, needle) {
+        if (needle.isEmpty()) shelved
+        else shelved.filter { card ->
             card.list.kindLabel().contains(needle, ignoreCase = true) ||
                 card.list.name.contains(needle, ignoreCase = true) ||
                 items.any { it.listId == card.list.id && it.name.contains(needle, ignoreCase = true) }
@@ -238,73 +277,81 @@ private fun ShoppingLists(
         },
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            when {
-                lists.isEmpty() -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 20.dp, vertical = 12.dp),
+            Column(modifier = Modifier.fillMaxSize()) {
+                if (!searching && picked.isEmpty()) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Text(
-                            text = "Henüz liste yok.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                }
-                shown.isEmpty() -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 20.dp, vertical = 12.dp),
-                    ) {
-                        Text(
-                            text = "“$needle” için sonuç yok.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                }
-                else -> {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 18.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        item { Spacer(Modifier.height(4.dp)) }
-                        items(shown, key = { it.list.id }) { card ->
-                            val hit = if (needle.isEmpty()) {
-                                null
-                            } else {
-                                items.firstOrNull {
-                                    it.listId == card.list.id && it.name.contains(needle, ignoreCase = true)
-                                }?.name
+                        kindLabels.forEachIndexed { index, label ->
+                            KindChip(label, pager.currentPage == index) {
+                                scope.launch { pager.animateScrollToPage(index) }
                             }
-                            ListRow(
-                                card,
-                                hint = hit,
-                                selected = card.list.id in picked,
-                                selecting = picked.isNotEmpty(),
-                                onOpen = {
-                                    if (picked.isNotEmpty()) {
-                                        picked = if (card.list.id in picked) picked - card.list.id else picked + card.list.id
-                                    } else {
-                                        onOpen(card)
-                                    }
-                                },
-                                onHold = {
-                                    picked = if (card.list.id in picked) picked - card.list.id else picked + card.list.id
-                                },
-                            )
                         }
-                        item { Spacer(Modifier.height(96.dp)) }
+                    }
+                }
+                HorizontalPager(state = pager, modifier = Modifier.fillMaxSize(), userScrollEnabled = !searching && picked.isEmpty()) { page ->
+                    val pageKind = kinds[page]
+                    val pageLists = if (searching) shown else shown.filter { it.list.kind.ifBlank { LIST_PLAIN } == pageKind }
+                    when {
+                        pageLists.isEmpty() -> {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                            ) {
+                                Text(
+                                    text = if (needle.isEmpty()) "Bu tarafta liste yok." else "“$needle” için sonuç yok.",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                        }
+                        else -> {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 18.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                item { Spacer(Modifier.height(4.dp)) }
+                                items(pageLists, key = { it.list.id }) { card ->
+                                    val hit = if (needle.isEmpty()) {
+                                        null
+                                    } else {
+                                        items.firstOrNull {
+                                            it.listId == card.list.id && it.name.contains(needle, ignoreCase = true)
+                                        }?.name
+                                    }
+                                    ListRow(
+                                        card,
+                                        hint = hit,
+                                        selected = card.list.id in picked,
+                                        selecting = picked.isNotEmpty(),
+                                        onOpen = {
+                                            if (picked.isNotEmpty()) {
+                                                picked = if (card.list.id in picked) picked - card.list.id else picked + card.list.id
+                                            } else {
+                                                onOpen(card)
+                                            }
+                                        },
+                                        onHold = {
+                                            picked = if (card.list.id in picked) picked - card.list.id else picked + card.list.id
+                                        },
+                                    )
+                                }
+                                item { Spacer(Modifier.height(96.dp)) }
+                            }
+                        }
                     }
                 }
             }
             if (picked.isEmpty() && !searching) {
                 FloatingActionButton(
-                    onClick = { askName = true },
+                    onClick = {
+                        kind = kinds[pager.currentPage]
+                        askName = true
+                    },
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(end = 20.dp, bottom = 20.dp),
@@ -340,8 +387,9 @@ private fun ShoppingLists(
                 TextButton(
                     onClick = {
                         onCreate(name, kind)
+                        val page = kinds.indexOf(kind)
+                        if (page >= 0) scope.launch { pager.animateScrollToPage(page) }
                         name = ""
-                        kind = LIST_PLAIN
                         askName = false
                     },
                     enabled = name.isNotBlank(),
@@ -350,7 +398,6 @@ private fun ShoppingLists(
             dismissButton = {
                 TextButton(onClick = {
                     name = ""
-                    kind = LIST_PLAIN
                     askName = false
                 }) { Text("Vazgeç") }
             },
@@ -505,6 +552,9 @@ private fun ShoppingDetail(
     onClearDone: () -> Unit,
     onDeleteList: () -> Unit,
     onIcon: (Int) -> Unit,
+    onRename: (String) -> Unit,
+    onSetCover: (Uri) -> Unit,
+    onRemoveCover: () -> Unit,
 ) {
     var draft by remember { mutableStateOf("") }
     var pricing by remember { mutableStateOf<ShoppingItem?>(null) }
@@ -514,11 +564,17 @@ private fun ShoppingDetail(
     var picked by remember { mutableStateOf(setOf<Long>()) }
     var editing by remember { mutableStateOf<ShoppingItem?>(null) }
     var editDraft by remember { mutableStateOf("") }
-    val open = items.filter { !it.done }
-    val done = items.filter { it.done }
+    var renaming by remember { mutableStateOf(false) }
+    var nameDraft by remember(card.list.name) { mutableStateOf(card.list.name) }
     val kind = card.list.kind
     val shop = kind == LIST_SHOP
     val recipe = kind == LIST_RECIPE
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val coverPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { onSetCover(it) }
+    }
+    val open = if (recipe) items else items.filter { !it.done }
+    val done = if (recipe) emptyList() else items.filter { it.done }
     val tint = MaterialTheme.colorScheme.primary
     val full = card.total > 0 && card.remaining == 0
     val goBack = {
@@ -538,6 +594,7 @@ private fun ShoppingDetail(
                             style = MaterialTheme.typography.headlineMedium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.clickableCard { renaming = true },
                         )
                     }
                 },
@@ -617,6 +674,7 @@ private fun ShoppingDetail(
                     ) { filled ->
                         Text(
                             text = when {
+                                recipe -> if (card.total == 0) "Tarif boş" else "${card.total} malzeme"
                                 full && shop -> "Sepet doldu"
                                 full -> "Hepsi bitti"
                                 card.total == 0 -> "Liste boş"
@@ -629,7 +687,8 @@ private fun ShoppingDetail(
                     }
                     Text(
                         text = when {
-                            card.total == 0 -> if (recipe) "Alta bir malzeme yaz" else "Alta bir madde yaz"
+                            card.total == 0 -> if (recipe) "Malzeme ya da adım yaz" else "Alta bir madde yaz"
+                            recipe -> "${items.count { it.isStep() }} adım"
                             shop -> "${card.total - card.remaining} / ${card.total}  ·  ${kurusText(items.openTotal().toInt())}"
                             else -> "${card.total - card.remaining} / ${card.total}"
                         },
@@ -644,16 +703,90 @@ private fun ShoppingDetail(
                     picking = false
                 }
             }
+            if (recipe) {
+                val coverFile = remember(card.list.coverImage) {
+                    card.list.coverImage.takeIf { it.isNotEmpty() }
+                        ?.let { DiaryImages.file(context, it, "recipe_covers") }
+                }
+                if (coverFile != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 18.dp, vertical = 6.dp)
+                            .clip(RoundedCornerShape(18.dp)),
+                    ) {
+                        AsyncImage(
+                            model = coverFile,
+                            contentDescription = "Tarif görseli",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(16f / 9f),
+                            contentScale = ContentScale.Crop,
+                        )
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f))
+                                    .clickableCard(onClick = { coverPicker.launch("image/*") })
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                            ) {
+                                Text("Değiştir", style = MaterialTheme.typography.labelMedium)
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f))
+                                    .clickableCard(onClick = onRemoveCover)
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                            ) {
+                                Text("Kaldır", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 18.dp, vertical = 4.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(MaterialTheme.colorScheme.surface)
+                            .clickableCard(onClick = { coverPicker.launch("image/*") })
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Icon(
+                            Icons.Outlined.AddPhotoAlternate,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Text(
+                            "Tarife görsel ekle",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
             if (items.isEmpty()) {
                 Text(
-                    text = if (recipe) "Liste boş. Alta bir malzeme yaz." else "Liste boş. Alta bir madde yaz.",
+                    text = if (recipe) "Tarif boş. Malzeme ya da adım yaz." else "Liste boş. Alta bir madde yaz.",
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Spacer(Modifier.weight(1f))
             } else {
+                val listState = rememberLazyListState()
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier
                         .weight(1f)
                         .padding(horizontal = 18.dp),
@@ -661,6 +794,7 @@ private fun ShoppingDetail(
                 ) {
                     item { Spacer(Modifier.height(4.dp)) }
                     items(open, key = { it.id }) { item ->
+                        val order = if (recipe) open.indexOfFirst { row -> row.id == item.id } + 1 else 0
                         ItemRow(
                             item,
                             tint,
@@ -673,7 +807,8 @@ private fun ShoppingDetail(
                                 pricing = item
                                 priceDraft = if (item.price == 0) "" else item.moneyText().removeSuffix(" ₺")
                             },
-                            measured = recipe,
+                            measured = recipe && !item.isStep(),
+                            numbered = order,
                             shop = shop,
                             onHold = {
                                 picked = if (item.id in picked) picked - item.id else picked + item.id
@@ -681,6 +816,7 @@ private fun ShoppingDetail(
                             onPick = {
                                 picked = if (item.id in picked) picked - item.id else picked + item.id
                             },
+                            modifier = Modifier.animateItem(),
                         )
                     }
                     if (done.isNotEmpty()) {
@@ -713,7 +849,8 @@ private fun ShoppingDetail(
                                     pricing = item
                                     priceDraft = if (item.price == 0) "" else item.moneyText().removeSuffix(" ₺")
                                 },
-                                measured = recipe,
+                                measured = recipe && !item.isStep(),
+                                numbered = 0,
                                 shop = shop,
                                 onHold = {
                                     picked = if (item.id in picked) picked - item.id else picked + item.id
@@ -721,6 +858,7 @@ private fun ShoppingDetail(
                                 onPick = {
                                     picked = if (item.id in picked) picked - item.id else picked + item.id
                                 },
+                                modifier = Modifier.animateItem(),
                             )
                         }
                     }
@@ -738,7 +876,7 @@ private fun ShoppingDetail(
                     onValueChange = { draft = it },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
-                    label = { Text(if (recipe) "Malzeme" else "Madde") },
+                    label = { Text(if (recipe) "Malzeme veya adım" else "Madde") },
                 )
                 IconButton(
                     onClick = {
@@ -751,6 +889,32 @@ private fun ShoppingDetail(
                 }
             }
         }
+    }
+    if (renaming) {
+        AlertDialog(
+            onDismissRequest = { renaming = false },
+            title = { Text("Liste adı") },
+            text = {
+                OutlinedTextField(
+                    value = nameDraft,
+                    onValueChange = { nameDraft = it },
+                    singleLine = true,
+                    label = { Text("Ad") },
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onRename(nameDraft)
+                        renaming = false
+                    },
+                    enabled = nameDraft.isNotBlank(),
+                ) { Text("Kaydet") }
+            },
+            dismissButton = {
+                TextButton(onClick = { renaming = false }) { Text("Vazgeç") }
+            },
+        )
     }
     if (askDelete) {
         AlertDialog(
@@ -823,6 +987,7 @@ private fun ShoppingDetail(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ItemRow(
     item: ShoppingItem,
@@ -830,6 +995,7 @@ private fun ItemRow(
     selecting: Boolean,
     selected: Boolean,
     measured: Boolean,
+    numbered: Int = 0,
     shop: Boolean,
     onToggle: () -> Unit,
     onCount: (Int) -> Unit,
@@ -837,50 +1003,61 @@ private fun ItemRow(
     onPrice: () -> Unit,
     onHold: () -> Unit,
     onPick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    var bounce by remember(item.id) { mutableIntStateOf(0) }
-    val scale = remember(item.id) { Animatable(1f) }
-    LaunchedEffect(bounce) {
-        if (bounce == 0) return@LaunchedEffect
-        scale.snapTo(0.86f)
-        scale.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = 520f))
-    }
+    val fill by animateFloatAsState(
+        targetValue = if (item.done || selected) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.82f, stiffness = 380f),
+        label = "check",
+    )
+    val empty = MaterialTheme.colorScheme.surfaceVariant
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(
                 if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
                 else MaterialTheme.colorScheme.surface,
             )
-            .clickableCard(onLongClick = onHold) { if (selecting) onPick() else onToggle() }
+            .clickableCard(onLongClick = onHold) {
+                if (selecting) onPick() else if (numbered == 0) onToggle()
+            }
             .padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
+        if (numbered > 0) {
+            Text(
+                text = "$numbered",
+                modifier = Modifier.width(28.dp),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = tint,
+            )
+        } else {
+            Box(
             modifier = Modifier
                 .size(22.dp)
-                .graphicsLayer {
-                    scaleX = scale.value
-                    scaleY = scale.value
-                }
                 .clip(RoundedCornerShape(7.dp))
-                .background(
-                    when {
-                        selected -> tint
-                        item.done -> tint
-                        else -> MaterialTheme.colorScheme.surfaceVariant
-                    },
-                ),
+                .background(empty),
             contentAlignment = Alignment.Center,
         ) {
-            if (item.done || selected) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        scaleX = fill
+                        transformOrigin = TransformOrigin(0f, 0.5f)
+                    }
+                    .background(tint),
+            )
+            if (fill > 0.55f) {
                 Icon(
                     Icons.Outlined.Check,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(14.dp),
                 )
+            }
             }
         }
         val nameColor = if (item.done) {

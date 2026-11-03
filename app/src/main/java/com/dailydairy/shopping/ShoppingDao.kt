@@ -11,13 +11,16 @@ interface ShoppingDao {
     @Query(
         """
         SELECT l.*,
-            (SELECT COUNT(*) FROM shopping_items i WHERE i.listId = l.id) AS total,
-            (SELECT COUNT(*) FROM shopping_items i WHERE i.listId = l.id AND i.done = 0) AS remaining
+            (SELECT COUNT(*) FROM shopping_items i WHERE i.listId = l.id AND i.unit != 'step') AS total,
+            (SELECT COUNT(*) FROM shopping_items i WHERE i.listId = l.id AND i.done = 0 AND i.unit != 'step') AS remaining
         FROM shopping_lists l
         ORDER BY l.updatedAt DESC
         """,
     )
     fun observeLists(): Flow<List<ShoppingListCard>>
+
+    @Query("SELECT COUNT(*) FROM shopping_lists")
+    suspend fun listCount(): Int
 
     @Query("SELECT * FROM shopping_items WHERE listId = :listId ORDER BY done ASC, position ASC, id ASC")
     fun observeItems(listId: Long): Flow<List<ShoppingItem>>
@@ -36,6 +39,9 @@ interface ShoppingDao {
 
     @Query("UPDATE shopping_lists SET tint = :icon WHERE id = :id")
     suspend fun setIcon(id: Long, icon: Int)
+
+    @Query("UPDATE shopping_lists SET name = :name, updatedAt = :now WHERE id = :id")
+    suspend fun rename(id: Long, name: String, now: Long)
 
     @Query("DELETE FROM shopping_items WHERE id = :id")
     suspend fun deleteItem(id: Long)
@@ -57,6 +63,9 @@ interface ShoppingDao {
 
     @Query("DELETE FROM shopping_items WHERE listId = :listId")
     suspend fun deleteItems(listId: Long)
+
+    @Query("UPDATE shopping_lists SET coverImage = :image, updatedAt = :now WHERE id = :id")
+    suspend fun setCoverImage(id: Long, image: String, now: Long)
 
     @Query("UPDATE shopping_lists SET updatedAt = :now WHERE id = :id")
     suspend fun touch(id: Long, now: Long)

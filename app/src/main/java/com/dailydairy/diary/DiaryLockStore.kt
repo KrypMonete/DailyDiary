@@ -20,6 +20,7 @@ class DiaryLockStore(private val context: Context) {
     private val hashKey = stringPreferencesKey("hash")
     private val hintKey = stringPreferencesKey("hint")
     private val fingerprintKey = booleanPreferencesKey("fingerprint")
+    private val retiredKey = booleanPreferencesKey("retired_unlocks_cleared")
 
     val lock: Flow<DiaryLock?> = context.lockStore.data.map { prefs ->
         val hash = prefs[hashKey] ?: return@map null
@@ -30,6 +31,16 @@ class DiaryLockStore(private val context: Context) {
 
     suspend fun setFingerprint(enabled: Boolean) {
         context.deviceStore.edit { it[fingerprintKey] = enabled }
+    }
+
+    suspend fun clearRetiredUnlocks() {
+        context.deviceStore.edit {
+            if (it[retiredKey] == true) return@edit
+            it.remove(booleanPreferencesKey("face"))
+            it.remove(stringPreferencesKey("face_print"))
+            it.remove(stringPreferencesKey("pattern"))
+            it[retiredKey] = true
+        }
     }
 
     suspend fun save(password: String, hint: String) {

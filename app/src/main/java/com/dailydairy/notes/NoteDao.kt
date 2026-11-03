@@ -11,6 +11,12 @@ interface NoteDao {
     @Query("SELECT * FROM notes ORDER BY pinned DESC, updatedAt DESC")
     fun observeAll(): Flow<List<Note>>
 
+    @Query("SELECT COUNT(*) FROM notes")
+    suspend fun count(): Int
+
+    @Query("SELECT COUNT(*) FROM note_folders")
+    suspend fun folderCount(): Int
+
     @Query("SELECT * FROM notes WHERE id = :id")
     suspend fun get(id: Long): Note?
 

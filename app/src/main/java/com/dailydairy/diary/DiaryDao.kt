@@ -11,6 +11,12 @@ interface DiaryDao {
     @Query("SELECT COUNT(*) FROM diary_entries WHERE createdAt >= :start AND createdAt < :end")
     fun countCreatedBetween(start: Long, end: Long): Flow<Int>
 
+    @Query("SELECT COUNT(*) FROM diary_entries WHERE updatedAt >= :start AND updatedAt <= :end")
+    suspend fun countUpdatedBetween(start: Long, end: Long): Int
+
+    @Query("SELECT COUNT(*) FROM diary_entries")
+    suspend fun count(): Int
+
     @Query("SELECT * FROM diary_entries ORDER BY updatedAt DESC")
     fun observeAll(): Flow<List<DiaryEntry>>
 

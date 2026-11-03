@@ -11,6 +11,9 @@ interface WatchDao {
     @Query("SELECT * FROM watch_titles ORDER BY addedAt DESC")
     fun observeAll(): Flow<List<WatchTitle>>
 
+    @Query("SELECT COUNT(*) FROM watch_titles")
+    suspend fun count(): Int
+
     @Query("SELECT * FROM watch_titles WHERE tmdbId = :tmdbId AND kind = :kind LIMIT 1")
     suspend fun find(tmdbId: Int, kind: String): WatchTitle?
 

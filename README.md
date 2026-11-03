@@ -38,8 +38,10 @@ Günlük, notlar, listeler, izleme listesi ve kitaplar. Tek telefonda, şifreyle
 - Alışverişte "Ürün X ₺ (veya tl/TL)" yazınca fiyat kendiliğinden kutuya girer. Tutar toplanır.
 - "20 tane ürün_adı" yazınca adet silinmez. İsim kalır, miktar yanında parantezde durur.
 - Tarifte "2 kilo ürün_adı" yazınca ürün_adı ve 2 kg diye ayrılır. Gram, kilo, litre, mililitre için de geçerlidir.
+- Tariflere kapak fotoğrafı eklenebilir, değiştirilebilir, kaldırılabilir.
 - Tür, liste ya da ürün adıyla aranır. "Tarif" yazınca tarifler gelir.
 - Her listenin ikonu sonradan seçilir. Yirmi beş ikon, tek satırda kayar.
+- Geri tuşu son açılan sekmeye döner.
 
 </td>
 <td width="50%" valign="top">
@@ -67,13 +69,14 @@ Günlük, notlar, listeler, izleme listesi ve kitaplar. Tek telefonda, şifreyle
 </td>
 <td width="50%" valign="top">
 
-**Tema ve yedek**
+**Tema, yedek ve bildirimler**
 
 - Açık, karanlık ya da telefonun kendi görünümü.
 - Sistem, Kâğıt, Deniz, Zeytin, Mercan, Gece, Gül, Bal, Toprak.
 - İlk kurulumda palet Sistemdir.
 - Günlük, notlar, listeler, filmler, kitaplar, fotoğraflar, tema ve şifre tek dosyada dışa aktarılır.
 - İçe alınca bu telefondakinin yerine geçer. Geri alınamaz.
+- O gün hiç yazmadıysan seçilen saatte hatırlatıcı bildirim gelir. Ayarlardan açılır, kapatılır ve saati değiştirilebilir.
 - Android 8 ve sonrası. Hesap yok, her şey telefonda.
 
 </td>

@@ -42,7 +42,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -161,9 +160,6 @@ private fun ShelfPage(
     }
     BackHandler(onBack = goBack)
     LaunchedEffect(query) { onSearch(query) }
-    LaunchedEffect(kind) {
-        if (kind == KIND_MOVIE && shelf == SHELF_WATCHING) onShelf(SHELF_WANT)
-    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -290,6 +286,16 @@ private fun SearchList(
     }
 }
 
+private data class ShelfPage(val kind: String, val shelf: String, val label: String)
+
+private val shelfPages = listOf(
+    ShelfPage(KIND_MOVIE, SHELF_WANT, "İzleyeceğim"),
+    ShelfPage(KIND_MOVIE, SHELF_DONE, "İzledim"),
+    ShelfPage(KIND_TV, SHELF_WATCHING, "İzliyorum"),
+    ShelfPage(KIND_TV, SHELF_WANT, "İzleyeceğim"),
+    ShelfPage(KIND_TV, SHELF_DONE, "İzledim"),
+)
+
 @Composable
 private fun ShelfList(
     saved: List<WatchTitle>,
@@ -301,68 +307,73 @@ private fun ShelfList(
     onMove: (WatchTitle, String) -> Unit,
     onRemove: (WatchTitle) -> Unit,
 ) {
-    val groups = if (kind == KIND_TV) {
-        listOf(SHELF_WATCHING to "İzliyorum", SHELF_WANT to "İzleyeceğim", SHELF_DONE to "İzledim")
-    } else {
-        listOf(SHELF_WANT to "İzleyeceğim", SHELF_DONE to "İzledim")
+    val start = shelfPages.indexOfFirst { it.kind == kind && it.shelf == shelf }.let { index ->
+        if (index >= 0) index else if (kind == KIND_TV) 2 else 0
     }
+    val pagerState = rememberPagerState(initialPage = start, pageCount = { shelfPages.size })
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.currentPage }.collect { page ->
+            shelfPages.getOrNull(page)?.let { current ->
+                onKind(current.kind)
+                onShelf(current.shelf)
+            }
+        }
+    }
+    val currentKind = shelfPages.getOrNull(pagerState.currentPage)?.kind ?: kind
+    val groups = shelfPages.filter { it.kind == currentKind }
     Column(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.padding(horizontal = 18.dp)) {
             Spacer(Modifier.height(4.dp))
-            KindSwitch(kind, onKind)
+            KindSwitch(currentKind) { next ->
+                val page = shelfPages.indexOfFirst { it.kind == next }
+                if (page >= 0) scope.launch { pagerState.animateScrollToPage(page) }
+            }
             Spacer(Modifier.height(12.dp))
         }
-        key(kind) {
-            val start = groups.indexOfFirst { it.first == shelf }.coerceAtLeast(0)
-            val pagerState = rememberPagerState(initialPage = start, pageCount = { groups.size })
-            val scope = rememberCoroutineScope()
-            LaunchedEffect(pagerState) {
-                snapshotFlow { pagerState.currentPage }.collect { page ->
-                    groups.getOrNull(page)?.first?.let(onShelf)
+        Row(
+            modifier = Modifier.padding(horizontal = 18.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            groups.forEach { group ->
+                val page = shelfPages.indexOf(group)
+                ShelfChip(group.label, pagerState.currentPage == page) {
+                    scope.launch { pagerState.animateScrollToPage(page) }
                 }
             }
-            Row(
-                modifier = Modifier.padding(horizontal = 18.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                groups.forEachIndexed { index, (_, label) ->
-                    ShelfChip(label, pagerState.currentPage == index) {
-                        scope.launch { pagerState.animateScrollToPage(index) }
-                    }
-                }
-            }
-            HorizontalPager(
-                state = pagerState,
+        }
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = 12.dp),
+        ) { page ->
+            val current = shelfPages[page]
+            val rows = saved.filter { it.kind == current.kind && it.shelf == current.shelf }
+            LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(top = 12.dp),
-            ) { page ->
-                val rows = saved.filter { it.kind == kind && it.shelf == groups[page].first }
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    if (rows.isEmpty()) {
-                        item {
-                            Text(
-                                text = "Bu listede bir şey yok.",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        }
-                    }
-                    items(rows, key = { it.id }) { title ->
-                        SavedRow(
-                            title,
-                            onOpen = { onOpen(title) },
-                            onMove = { onMove(title, it) },
-                            onRemove = { onRemove(title) },
+                    .padding(horizontal = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (rows.isEmpty()) {
+                    item {
+                        Text(
+                            text = "Bu listede bir şey yok.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodyMedium,
                         )
                     }
-                    item { Spacer(Modifier.height(96.dp)) }
                 }
+                items(rows, key = { it.id }) { title ->
+                    SavedRow(
+                        title,
+                        onOpen = { onOpen(title) },
+                        onMove = { onMove(title, it) },
+                        onRemove = { onRemove(title) },
+                    )
+                }
+                item { Spacer(Modifier.height(96.dp)) }
             }
         }
     }

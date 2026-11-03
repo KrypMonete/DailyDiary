@@ -29,6 +29,7 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         viewModelScope.launch {
+            lockStore.clearRetiredUnlocks()
             lockStore.lock.collect { lockReady.value = true }
         }
     }
@@ -49,6 +50,10 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
 
     fun unlock() {
         _unlocked.value = true
+    }
+
+    fun lockAgain() {
+        _unlocked.value = false
     }
 
     fun createLock(password: String, hint: String) {

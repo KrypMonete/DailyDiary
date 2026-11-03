@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [ShoppingList::class, ShoppingItem::class], version = 7, exportSchema = false)
+@Database(entities = [ShoppingList::class, ShoppingItem::class], version = 8, exportSchema = false)
 abstract class ShoppingDatabase : RoomDatabase() {
     abstract fun shoppingDao(): ShoppingDao
 
@@ -49,6 +49,12 @@ abstract class ShoppingDatabase : RoomDatabase() {
             }
         }
 
+        private val migration7To8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE shopping_lists ADD COLUMN coverImage TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         @Volatile private var instance: ShoppingDatabase? = null
 
         fun closeInstance() {
@@ -62,7 +68,7 @@ abstract class ShoppingDatabase : RoomDatabase() {
                     context.applicationContext,
                     ShoppingDatabase::class.java,
                     "shopping.db",
-                ).addMigrations(migration1To2, migration2To3, migration3To4, migration4To5, migration5To6, migration6To7).build().also { instance = it }
+                ).addMigrations(migration1To2, migration2To3, migration3To4, migration4To5, migration5To6, migration6To7, migration7To8).build().also { instance = it }
             }
     }
 }

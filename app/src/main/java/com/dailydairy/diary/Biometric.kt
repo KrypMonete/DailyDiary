@@ -7,11 +7,21 @@ import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 
-object Fingerprint {
-    fun available(context: Context): Boolean =
+object Biometric {
+    fun fingerprintAvailable(context: Context): Boolean =
         BiometricManager.from(context).canAuthenticate(BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
 
-    fun ask(activity: FragmentActivity, onSuccess: () -> Unit, onFail: () -> Unit = {}) {
+    fun askFingerprint(activity: FragmentActivity, onSuccess: () -> Unit, onFail: () -> Unit = {}) {
+        ask(activity, BIOMETRIC_STRONG, "Parmak iziyle aç", onSuccess, onFail)
+    }
+
+    private fun ask(
+        activity: FragmentActivity,
+        authenticators: Int,
+        subtitle: String,
+        onSuccess: () -> Unit,
+        onFail: () -> Unit,
+    ) {
         val prompt = BiometricPrompt(
             activity,
             ContextCompat.getMainExecutor(activity),
@@ -35,9 +45,9 @@ object Fingerprint {
         prompt.authenticate(
             BiometricPrompt.PromptInfo.Builder()
                 .setTitle("Günlük")
-                .setSubtitle("Parmak iziyle aç")
+                .setSubtitle(subtitle)
                 .setNegativeButtonText("Şifreyle aç")
-                .setAllowedAuthenticators(BIOMETRIC_STRONG)
+                .setAllowedAuthenticators(authenticators)
                 .setConfirmationRequired(false)
                 .build(),
         )

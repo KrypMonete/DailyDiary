@@ -17,52 +17,77 @@ object Backup {
     private val stores = listOf("diary_lock.preferences_pb", "theme.preferences_pb")
     private val folders = listOf("diary_images", "note_images", "book_covers")
 
+    private const val KEEP = "dailydiary-keep.zip"
+
+    fun hasKept(context: Context): Boolean = keepFile(context).exists()
+
+    fun keep(context: Context) {
+        val file = keepFile(context)
+        file.parentFile?.mkdirs()
+        write(context, file.outputStream())
+    }
+
+    fun restoreKept(context: Context) {
+        val file = keepFile(context)
+        if (!file.exists()) error("Manuel yedek yok.")
+        restoreFrom(context, file.inputStream())
+    }
+
     fun export(context: Context, dest: Uri) {
+        context.contentResolver.openOutputStream(dest)?.use { write(context, it) }
+            ?: error("Yedek yazılamadı.")
+    }
+
+    private fun keepFile(context: Context): File =
+        File(context.applicationContext.dataDir, "keep/$KEEP")
+
+    private fun write(context: Context, raw: java.io.OutputStream) {
         checkpoint(context)
         val root = context.applicationContext.filesDir
-        context.contentResolver.openOutputStream(dest)?.use { raw ->
-            ZipOutputStream(raw).use { zip ->
-                databases.forEach { name ->
-                    val dir = File(root.parentFile, "databases")
-                    listOf(name, "$name-wal", "$name-shm").forEach { file ->
-                        addFile(zip, File(dir, file), "databases/$file")
-                    }
-                }
-                stores.forEach { addFile(zip, File(root, "datastore/$it"), "datastore/$it") }
-                folders.forEach { folder ->
-                    val dir = File(root, folder)
-                    dir.listFiles()?.filter { it.isFile }?.forEach { file ->
-                        addFile(zip, file, "$folder/${file.name}")
-                    }
+        ZipOutputStream(raw).use { zip ->
+            databases.forEach { name ->
+                val dir = File(root.parentFile, "databases")
+                listOf(name, "$name-wal", "$name-shm").forEach { file ->
+                    addFile(zip, File(dir, file), "databases/$file")
                 }
             }
-        } ?: error("Yedek yazılamadı.")
+            stores.forEach { addFile(zip, File(root, "datastore/$it"), "datastore/$it") }
+            folders.forEach { folder ->
+                val dir = File(root, folder)
+                dir.listFiles()?.filter { it.isFile }?.forEach { file ->
+                    addFile(zip, file, "$folder/${file.name}")
+                }
+            }
+        }
     }
 
     fun restore(context: Context, source: Uri) {
+        context.applicationContext.contentResolver.openInputStream(source)?.use { restoreFrom(context, it) }
+            ?: error("Yedek okunamadı.")
+    }
+
+    private fun restoreFrom(context: Context, raw: java.io.InputStream) {
         val app = context.applicationContext
         val root = app.filesDir
         val stage = File(app.cacheDir, "restore").apply {
             deleteRecursively()
             mkdirs()
         }
-        app.contentResolver.openInputStream(source)?.use { raw ->
-            ZipInputStream(raw).use { zip ->
-                var entry = zip.nextEntry
-                var count = 0
-                while (entry != null) {
-                    if (!entry.isDirectory && safe(entry.name)) {
-                        val file = File(stage, entry.name)
-                        file.parentFile?.mkdirs()
-                        file.outputStream().use { zip.copyTo(it) }
-                        count++
-                    }
-                    zip.closeEntry()
-                    entry = zip.nextEntry
+        ZipInputStream(raw).use { zip ->
+            var entry = zip.nextEntry
+            var count = 0
+            while (entry != null) {
+                if (!entry.isDirectory && safe(entry.name)) {
+                    val file = File(stage, entry.name)
+                    file.parentFile?.mkdirs()
+                    file.outputStream().use { zip.copyTo(it) }
+                    count++
                 }
-                if (count == 0) error("Bu dosya yedek değil.")
+                zip.closeEntry()
+                entry = zip.nextEntry
             }
-        } ?: error("Yedek okunamadı.")
+            if (count == 0) error("Bu dosya yedek değil.")
+        }
 
         closeDatabases()
         databases.forEach { name ->
@@ -90,6 +115,16 @@ object Backup {
             }
         }
         stage.deleteRecursively()
+    }
+
+    suspend fun empty(context: Context): Boolean {
+        val app = context.applicationContext
+        return DiaryDatabase.get(app).diaryDao().count() == 0 &&
+            NoteDatabase.get(app).noteDao().count() == 0 &&
+            NoteDatabase.get(app).noteDao().folderCount() == 0 &&
+            ShoppingDatabase.get(app).shoppingDao().listCount() == 0 &&
+            WatchDatabase.get(app).watchDao().count() == 0 &&
+            BookDatabase.get(app).bookDao().count() == 0
     }
 
     private fun safe(name: String): Boolean {

@@ -1,12 +1,16 @@
 package com.dailydairy.shopping
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.dailydairy.diary.DiaryImages
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class ShoppingViewModel(application: Application) : AndroidViewModel(application) {
     private val dao = ShoppingDatabase.get(application).shoppingDao()
@@ -44,6 +48,12 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
 
     fun setIcon(id: Long, icon: Int) {
         viewModelScope.launch { dao.setIcon(id, icon) }
+    }
+
+    fun rename(id: Long, name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch { dao.rename(id, trimmed, System.currentTimeMillis()) }
     }
 
     fun deleteList(id: Long) = deleteLists(listOf(id))
@@ -155,6 +165,29 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
             dao.touch(listId, System.currentTimeMillis())
         }
     }
+
+    fun setCoverImage(listId: Long, uri: Uri) {
+        viewModelScope.launch {
+            val name = withContext(Dispatchers.IO) {
+                DiaryImages.copy(getApplication(), uri, "recipe_covers")
+            } ?: return@launch
+            val old = lists.value.find { it.list.id == listId }?.list?.coverImage.orEmpty()
+            dao.setCoverImage(listId, name, System.currentTimeMillis())
+            if (old.isNotEmpty()) {
+                withContext(Dispatchers.IO) { DiaryImages.delete(getApplication(), listOf(old), "recipe_covers") }
+            }
+        }
+    }
+
+    fun removeCoverImage(listId: Long) {
+        viewModelScope.launch {
+            val old = lists.value.find { it.list.id == listId }?.list?.coverImage.orEmpty()
+            dao.setCoverImage(listId, "", System.currentTimeMillis())
+            if (old.isNotEmpty()) {
+                withContext(Dispatchers.IO) { DiaryImages.delete(getApplication(), listOf(old), "recipe_covers") }
+            }
+        }
+    }
 }
 
 private data class Measure(val name: String, val count: Int, val unit: String)
@@ -187,7 +220,7 @@ private fun parsePrice(raw: String): Priced? {
     return null
 }
 
-private val unitWord = """(?:kilogram|kilolar|kiloları|kilo|kg|gram|gr|mililitre|milim|ml|litre|lt|adet|tane|ad|g|l)"""
+private val unitWord = """(?:kilogram|kilolar|kiloları|kilo|kg|gram|gr|mililitre|milim|ml|litre|lt|adet|tane|ad|su\s*b\.?|çay\s*b\.?|sb|çb|cb|su\s+barda[ğg][ıi]|çay\s+barda[ğg][ıi]|bardak|barda[ğg][ıi]|yemek\s*k\.?|tatlı\s*k\.?|çay\s*k\.?|yk|tk|çk|ck|çay\s+kaşı[ğg][ıi]|yemek\s+kaşı[ğg][ıi]|tatlı\s+kaşı[ğg][ıi]|kaşık|kaşı[ğg][ıi]|saniye|saniyeler|sn|dakika|dakikalar|dk|saat|saatler|g|l)"""
 
 private fun shopName(raw: String): String {
     val text = raw.trim()
@@ -220,7 +253,7 @@ private fun parseMeasure(raw: String): Measure {
     val text = raw.trim()
     val number = """(\d+(?:[.,]\d+)?)"""
     val lead = Regex(
-        """^$number\s*($unitWord)\.?\s+(.+)$""",
+        """^$number\s*($unitWord)\s+(.+)$""",
         RegexOption.IGNORE_CASE,
     ).matchEntire(text)
     if (lead != null) {
@@ -228,7 +261,7 @@ private fun parseMeasure(raw: String): Measure {
         if (name.isNotEmpty()) return measure(name, lead.groupValues[1], lead.groupValues[2])
     }
     val tail = Regex(
-        """^(.+?)\s+$number\s*($unitWord)\.?$""",
+        """^(.+?)\s+$number\s*($unitWord)$""",
         RegexOption.IGNORE_CASE,
     ).matchEntire(text)
     if (tail != null) {
@@ -241,27 +274,38 @@ private fun parseMeasure(raw: String): Measure {
         val count = times.groupValues[2].toIntOrNull()?.coerceIn(1, 99) ?: 1
         if (name.isNotEmpty()) return Measure(name, count, "")
     }
-    val plain = Regex("""^$number\s+(.+)$""").matchEntire(text)
+    val plain = Regex("""^$number\s+(\p{L}[\p{L}\p{M}'’-]*)$""").matchEntire(text)
     if (plain != null) {
         val name = plain.groupValues[2].trim()
-        val count = plain.groupValues[1].replace(',', '.').toDoubleOrNull()?.toInt()?.coerceIn(1, 99) ?: 1
+        val count = plain.groupValues[1].substringBefore(',').substringBefore('.').toIntOrNull()?.coerceIn(1, 99) ?: 1
         if (name.isNotEmpty()) return Measure(name, count, "")
     }
-    return Measure(text, 1, "")
+    return Measure(text, 1, "step")
 }
 
 private fun measure(name: String, number: String, rawUnit: String): Measure {
     val value = number.replace(',', '.').toDoubleOrNull() ?: 1.0
-    val unit = when (rawUnit.lowercase().trimEnd('.')) {
+    val unit = when (rawUnit.lowercase().replace(Regex("\\s+"), " ").trim().trimEnd('.')) {
         "kg", "kilo", "kilogram", "kilolar", "kiloları" -> "kg"
         "g", "gr", "gram" -> "g"
         "ml", "mililitre", "milim" -> "ml"
         "l", "lt", "litre" -> "L"
+        "sb", "su b", "su bardağı", "su bardak", "bardak", "bardağı" -> "su bardağı"
+        "çb", "cb", "çay b", "çay bardağı", "çay bardak" -> "çay bardağı"
+        "yk", "yemek k", "yemek kaşığı", "yemek kaşık" -> "yemek kaşığı"
+        "tk", "tatlı k", "tatlı kaşığı", "tatlı kaşık" -> "tatlı kaşığı"
+        "çk", "ck", "çay k", "çay kaşığı", "çay kaşık" -> "çay kaşığı"
+        "kaşık", "kaşığı" -> "kaşık"
+        "sn", "saniye", "saniyeler" -> "sn"
+        "dk", "dakika", "dakikalar" -> "dk"
+        "saat", "saatler" -> "saat"
+        "adet", "tane", "ad" -> ""
         else -> ""
     }
     val count = when (unit) {
         "kg", "L" -> (value * 10).toInt().coerceIn(1, 200)
-        "g", "ml" -> value.toInt().coerceIn(1, 9_999)
+        "g", "ml", "sn" -> value.toInt().coerceIn(1, 9_999)
+        "saat" -> value.toInt().coerceIn(1, 48)
         else -> value.toInt().coerceIn(1, 99)
     }
     return Measure(name, count, unit)

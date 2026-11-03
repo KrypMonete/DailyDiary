@@ -11,6 +11,9 @@ interface BookDao {
     @Query("SELECT * FROM books ORDER BY addedAt DESC")
     fun observeAll(): Flow<List<Book>>
 
+    @Query("SELECT COUNT(*) FROM books")
+    suspend fun count(): Int
+
     @Query("SELECT * FROM books WHERE workKey = :workKey LIMIT 1")
     suspend fun find(workKey: String): Book?
 

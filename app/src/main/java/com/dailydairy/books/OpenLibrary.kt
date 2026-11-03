@@ -14,7 +14,7 @@ data class BookHit(
     val overview: String,
 )
 
-private const val AGENT = "DailyDairy/1.0 (personal book shelf)"
+private const val AGENT = "DailyDiary/1.0 (personal book shelf)"
 private const val TURKISH = "çğıöşüÇĞİÖŞÜ"
 private const val FOREIGN = "àáâãäåæèéêëìíîïðñòóôõöøùúûýÿÀÁÂÃÄÅÆÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÝß"
 

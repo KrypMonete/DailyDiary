@@ -22,6 +22,7 @@ data class ShoppingList(
     val kind: String = LIST_SHOP,
     val createdAt: Long,
     val updatedAt: Long,
+    val coverImage: String = "",
 )
 
 @Entity(tableName = "shopping_items")
@@ -71,6 +72,7 @@ fun List<ShoppingItem>.fullTotal(): Long =
     filter { it.price > 0 }.sumOf { it.price.toLong() }
 
 fun ShoppingItem.amountText(): String {
+    if (isStep()) return ""
     if (unit.isBlank()) return if (count == 1) "1 adet" else "$count adet"
     val number = when (unit) {
         "kg", "L" -> {
@@ -80,9 +82,16 @@ fun ShoppingItem.amountText(): String {
         }
         else -> count.toString()
     }
-    val label = unit.ifBlank { "adet" }
+    val label = when (unit) {
+        "sn" -> "saniye"
+        "dk" -> "dakika"
+        "su bardağı", "çay bardağı", "yemek kaşığı", "tatlı kaşığı", "çay kaşığı" -> unit
+        else -> unit
+    }
     return "$number $label"
 }
+
+fun ShoppingItem.isStep(): Boolean = unit == "step"
 
 fun ShoppingItem.measureStep(): Int = when (unit) {
     "g", "ml" -> 50
@@ -91,8 +100,10 @@ fun ShoppingItem.measureStep(): Int = when (unit) {
 }
 
 fun ShoppingItem.measureMax(): Int = when (unit) {
-    "g", "ml" -> 9_999
+    "g", "ml", "sn" -> 9_999
     "kg", "L" -> 200
+    "saat" -> 48
+    "su bardağı", "çay bardağı", "yemek kaşığı", "tatlı kaşığı", "çay kaşığı", "kaşık" -> 99
     else -> 99
 }
 
@@ -101,12 +112,21 @@ fun ShoppingItem.cycled(): Pair<Int, String> = when (unit) {
     "g" -> (count / 100).coerceAtLeast(5) to "kg"
     "kg" -> 250 to "ml"
     "ml" -> (count / 100).coerceAtLeast(5) to "L"
+    "L" -> count.coerceIn(1, 99) to "su bardağı"
+    "su bardağı" -> count to "çay bardağı"
+    "çay bardağı" -> count to "yemek kaşığı"
+    "yemek kaşığı" -> count to "tatlı kaşığı"
+    "tatlı kaşığı" -> count to "çay kaşığı"
+    "çay kaşığı", "kaşık" -> count.coerceIn(1, 9_999) to "sn"
+    "sn" -> (count / 60).coerceAtLeast(1) to "dk"
+    "dk" -> (count / 60).coerceAtLeast(1) to "saat"
     else -> 1 to ""
 }
 
 fun ShoppingItem.shopCycled(): Pair<Int, String> = 1 to ""
 
 fun ShoppingItem.editText(recipe: Boolean, shop: Boolean): String = when {
+    recipe && isStep() -> name
     recipe && unit.isNotBlank() -> "${amountText()} $name"
     recipe && count != 1 -> "$count $name"
     shop && price > 0 -> "$name ${kurusText(price)}"

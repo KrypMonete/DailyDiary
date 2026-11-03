@@ -1,13 +1,16 @@
 package com.dailydairy.diary
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -153,8 +156,8 @@ fun DiaryUnlockScreen(
     BackHandler(onBack = onBack)
 
     LaunchedEffect(fingerprint) {
-        if (fingerprint && Fingerprint.available(activity)) {
-            Fingerprint.ask(activity, onSuccess = onUnlock)
+        if (fingerprint && Biometric.fingerprintAvailable(activity)) {
+            Biometric.askFingerprint(activity, onSuccess = onUnlock)
         }
     }
 
@@ -177,7 +180,8 @@ fun DiaryUnlockScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .imePadding()
-                .padding(horizontal = 20.dp),
+                .padding(horizontal = 20.dp)
+                .navigationBarsPadding(),
         ) {
             Text(
                 text = "Yazıların kilitli.",
@@ -218,6 +222,17 @@ fun DiaryUnlockScreen(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = password.isNotEmpty(),
             ) { Text("Aç") }
+            if (fingerprint) {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    TextButton(onClick = {
+                        Biometric.askFingerprint(activity, onSuccess = onUnlock)
+                    }) { Text("Parmak izi") }
+                }
+            }
         }
     }
 }
