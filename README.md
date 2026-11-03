@@ -22,3 +22,5 @@ Android 8 ve sonrası. İndir, aç, yükle.
 Kaynağa bakabilir, fork edebilir ve düzeltmeni pull request ile gönderebilirsin. Bu uygulamayı kendi adına yayınlayamazsın. Ayrıntı `LICENSE` dosyasında.
 
 Kendi derlemen için `local.properties.example` dosyasını `local.properties` olarak kopyala. Anahtarlar sende kalır; depoya yazılmaz.
+
+<!-- YOLO -->
