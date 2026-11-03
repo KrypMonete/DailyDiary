@@ -4,84 +4,14 @@ Günlük, notlar, listeler, izleme listesi ve kitaplar. Tek telefonda, şifreyle
 
 ## Özellikler
 
-<table>
-<tr>
-<td width="50%" valign="top">
-
-**Günlük**
-
-- Her uygulama açılışında şifre ister.
-- Parmak izi destekleyen telefonlarda; Parmak izi şifrenin yerine geçer. Başka telefona yedekle gitmez.
-- Fotoğraf, GIF, video ve konum eklenebilir. GIF aranır.
-- Yazı içinde aranır. Güne, aya ve yıla göre süzülür.
-
-</td>
-<td width="50%" valign="top">
-
-**Notlar**
-
-- Cep defteri.
-- Klasöre oluşturma ve başa tutturma olayları vardır.
-- Klasör yokken taşı dersen önce klasör açılır, not oraya girer.
-- Galeriden fotoğraf ve GIF konur.
-- Başlıkta ve yazıda aranır.
-- Birden fazla not seçilir, taşınır ya da silinir.
-
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
-
-**Listeler**
-
-- Üç tür: düz liste, alışveriş ve tarif.
-- Alışverişte "Ürün X ₺ (veya tl/TL)" yazınca fiyat kendiliğinden kutuya girer. Tutar toplanır.
-- "20 tane ürün_adı" yazınca adet silinmez. İsim kalır, miktar yanında parantezde durur.
-- Tarifte "2 kilo ürün_adı" yazınca ürün_adı ve 2 kg diye ayrılır. Gram, kilo, litre, mililitre için de geçerlidir.
-- Tariflere kapak fotoğrafı eklenebilir, değiştirilebilir, kaldırılabilir.
-- Tür, liste ya da ürün adıyla aranır. "Tarif" yazınca tarifler gelir.
-- Her listenin ikonu sonradan seçilir. Yirmi beş ikon, tek satırda kayar.
-- Geri tuşu son açılan sekmeye döner.
-
-</td>
-<td width="50%" valign="top">
-
-**İzleme listesi**
-
-- Film ve dizi aranır. Kapak, yıl ve özet gelir.
-- "İzleyeceğim, İzliyorum, İzledim" Olmak üzere üç katagori var. Filmde "izliyorum" yok.
-- "İzlediklerim" katagorisinde Film/Diziye 10 üzerinden puan ve not konur.
-- Raftan rafa taşınır, listeden çıkarılır.
-
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
-
-**Kitaplar**
-
-- Kitap aranır.
-- Aramadan sonuç çıkmaz ise; Kapak, ad ve yazar elle de eklenir.
-- "Şu an okuyorum, okuyacaklarım, okudum" olarak toplam 3 katagori
-- "Okuduklarım" katagorisinde okunanlara 10 üzerinden puan ve not konur.
-- Yazarın adına basınca o yazarın kitapları gelir.
-
-</td>
-<td width="50%" valign="top">
-
-**Tema, yedek ve bildirimler**
-
-- Açık, karanlık ya da telefonun kendi görünümü.
-- Sistem, Kâğıt, Deniz, Zeytin, Mercan, Gece, Gül, Bal, Toprak.
-- İlk kurulumda palet Sistemdir.
-- Günlük, notlar, listeler, filmler, kitaplar, fotoğraflar, tema ve şifre tek dosyada dışa aktarılır.
-- İçe alınca bu telefondakinin yerine geçer. Geri alınamaz.
-- O gün hiç yazmadıysan seçilen saatte hatırlatıcı bildirim gelir. Ayarlardan açılır, kapatılır ve saati değiştirilebilir.
-- Android 8 ve sonrası. Hesap yok, her şey telefonda.
-
-</td>
-</tr>
-</table>
+- 📓 **Günlük** — Şifre ve parmak izi koruması. Fotoğraf, GIF, video, konum eklenebilir. Güne, aya, yıla göre süzülür.
+- 🗒️ **Notlar** — Klasörlü cep defteri. Fotoğraf ve GIF eklenebilir.
+- 📋 **Listeler** — Düz liste, alışveriş ve tarif. Alışverişte fiyat toplanır, tarifte ölçü otomatik ayrılır. Tariflere kapak fotoğrafı eklenebilir.
+- 🎬 **İzleme listesi** — Film ve dizi aranır. İzleyeceğim / İzliyorum / İzledim. Puan ve not konur.
+- 📚 **Kitaplar** — Kitap aranır veya elle eklenir. Okuyacaklarım / Okuyorum / Okudum. Puan ve not konur.
+- 🔔 **Bildirim** — O gün hiç yazmadıysan seçilen saatte hatırlatır.
+- 💾 **Yedek** — Her şey tek dosyada dışa aktarılır. Tema, şifre dahil.
+- Hesap yok. Her şey telefonda. Android 8+.
 
 ## Download Now
 
